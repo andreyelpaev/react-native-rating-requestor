@@ -1,11 +1,11 @@
 import { Platform, Alert, Linking } from "react-native";
-import * as StoreReview from 'react-native-store-review';
+import * as StoreReview from "react-native-store-review";
 import RatingsData from "./RatingsData";
 
 export const buttonTypes = {
   NEUTRAL_DELAY: "NEUTRAL_DELAY",
   NEGATIVE_DECLINE: "NEGATIVE_DECLINE",
-  POSITIVE_ACCEPT: "POSITIVE_ACCEPT"
+  POSITIVE_ACCEPT: "POSITIVE_ACCEPT",
 };
 
 const _config = {
@@ -13,12 +13,13 @@ const _config = {
   message:
     "We hope you're loving our app. If you are, would you mind taking a quick moment to leave us a positive review?",
   appStoreId: null,
+  marketId: null,
   actionLabels: {
     decline: "Don't ask again",
     delay: "Maybe later...",
-    accept: "Sure!"
+    accept: "Sure!",
   },
-  timingFunction: function(currentCount) {
+  timingFunction: function (currentCount) {
     return (
       currentCount > 1 &&
       (Math.log(currentCount) / Math.log(3)).toFixed(4) % 1 == 0
@@ -28,24 +29,24 @@ const _config = {
     ios: [
       buttonTypes.NEGATIVE_DECLINE,
       buttonTypes.NEUTRAL_DELAY,
-      buttonTypes.POSITIVE_ACCEPT
+      buttonTypes.POSITIVE_ACCEPT,
     ],
     android: [
       buttonTypes.NEGATIVE_DECLINE,
       buttonTypes.NEUTRAL_DELAY,
-      buttonTypes.POSITIVE_ACCEPT
-    ]
+      buttonTypes.POSITIVE_ACCEPT,
+    ],
   },
   shouldBoldLastButton: true,
-  storeAppName: 'appName',
-  storeCountry: 'us'
+  storeAppName: "appName",
+  storeCountry: "us",
 };
 
 async function _isAwaitingRating() {
   let timestamps = await RatingsData.getActionTimestamps();
 
   // If no timestamps have been set yet we are still awaiting the user, return true
-  return timestamps.every(timestamp => {
+  return timestamps.every((timestamp) => {
     return timestamp[1] === null;
   });
 }
@@ -57,6 +58,7 @@ async function _isAwaitingRating() {
 export default class RatingRequestor {
   /**
    * @param  {string} appStoreId - Required. The ID used in the app's respective app store
+   * @param  {string} marketId - Required. The ID used in the app's respective play market
    * @param  {object} options - Optional. Override the defaults. Takes the following shape, with all elements being optional:
    * 								{
    * 									title: {string},
@@ -66,29 +68,30 @@ export default class RatingRequestor {
    * 										delay: {string},
    * 										accept: {string}
    * 									},
-	 * 									buttonOrder: {
-	 * 										ios: [buttonTypes],
-	 * 										android: [buttonTypes],
-	 * 									}
+   * 									buttonOrder: {
+   * 										ios: [buttonTypes],
+   * 										android: [buttonTypes],
+   * 									}
    * 									shouldBoldLastButton: {boolean},
    *                  storeAppName: {string},
    *                  storeCountry: {string},
    * 									timingFunction: {func}
    * 								}
    */
-  constructor(appStoreId, options) {
+  constructor(appStoreId, marketId, options) {
     // Check for required options
-    if (!appStoreId) {
+    if (!appStoreId && !marketId) {
       throw "You must specify your app's store ID on construction to use the Rating Requestor.";
     }
 
     // Merge defaults with user-supplied config
     Object.assign(_config, options);
-		_config.appStoreId = appStoreId;
+    _config.appStoreId = appStoreId;
+    _config.marketId = marketId;
 
-		this.storeUrl = Platform.select({
+    this.storeUrl = Platform.select({
       ios: `https://itunes.apple.com/${_config.storeCountry}/app/${_config.storeAppName}/id${_config.appStoreId}`,
-      android: `market://details?id=${_config.appStoreId}`,
+      android: `market://details?id=${_config.marketId}`,
     });
   }
 
@@ -107,13 +110,13 @@ export default class RatingRequestor {
         onPress: () => {
           RatingsData.recordDecline();
           callback(true, "decline");
-        }
+        },
       },
       NEUTRAL_DELAY: {
         text: _config.actionLabels.delay,
         onPress: () => {
           callback(true, "delay");
-        }
+        },
       },
       POSITIVE_ACCEPT: {
         text: _config.actionLabels.accept,
@@ -121,27 +124,25 @@ export default class RatingRequestor {
           RatingsData.recordRated();
           callback(true, "accept");
           // This API is only available on iOS 10.3 or later
-					if (Platform.OS === 'ios' && StoreReview.isAvailable) {
-						StoreReview.requestReview();
-					} else {
-						Linking.openURL(this.storeUrl);
-					}
+          if (Platform.OS === "ios" && StoreReview.isAvailable) {
+            StoreReview.requestReview();
+          } else {
+            Linking.openURL(this.storeUrl);
+          }
         },
         style: "default",
-      }
-		};
+      },
+    };
 
-		const buttons = Platform.select(_config.buttonOrder).map(bo => buttonDefaults[bo]);
-
-		if (_config.shouldBoldLastButton) {
-			buttons[2].style = 'cancel';
-		}
-
-    Alert.alert(
-      _config.title,
-      _config.message,
-      buttons,
+    const buttons = Platform.select(_config.buttonOrder).map(
+      (bo) => buttonDefaults[bo]
     );
+
+    if (_config.shouldBoldLastButton) {
+      buttons[2].style = "cancel";
+    }
+
+    Alert.alert(_config.title, _config.message, buttons);
   }
 
   /**
